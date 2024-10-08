@@ -1,11 +1,10 @@
 import random
 import time
 
-import requests
 import telebot
-from secret_data import token
 from telebot import types
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+
+from secret_data import token
 
 bot = telebot.TeleBot(token)
 
@@ -55,12 +54,12 @@ def rock_paper_scissors_check(user_answer, computer_answer):
 
 @bot.message_handler(commands=['start'])
 def start_handler(message):
-    markup = ReplyKeyboardMarkup(row_width=3)
-    item1 = KeyboardButton('Угадай число')
-    item2 = KeyboardButton('Камень ножницы бумага')
-    item3 = KeyboardButton('Крестики нолики')
-    item4 = KeyboardButton('Викторина')
-    item5 = KeyboardButton('Финальная игра')
+    markup = types.ReplyKeyboardMarkup(row_width=3)
+    item1 = types.KeyboardButton('Угадай число')
+    item2 = types.KeyboardButton('Камень ножницы бумага')
+    item3 = types.KeyboardButton('Крестики нолики')
+    item4 = types.KeyboardButton('Викторина')
+    item5 = types.KeyboardButton('Финальная игра')
     markup.add(item1, item2, item3, item4, item5)
     bot.send_message(message.chat.id,
                      f'Привет, я бот-помощник.\nТвоя задача пройти все игры.\nНо не все так просто их нужно разблокировать за монеты. Монеты дается за прохождение игр.',
@@ -69,7 +68,7 @@ def start_handler(message):
 
 
 def second_step_start_handler(message):
-    markup = ReplyKeyboardRemove()
+    markup = types.ReplyKeyboardRemove()
     if message.text == 'Угадай число':
         bot.send_message(message.chat.id,
                          f'Вы выбрали игру: {message.text}\nВы должны угадать число от 1 до 100, которое я загадаю\nЯ буду давать вам подсказки\nУ вас 5 попыток',
@@ -94,7 +93,18 @@ def second_step_start_handler(message):
         lose_counter = 0
         bot.register_next_step_handler(message, rock_paper_scissors, win_counter, lose_counter)
     elif message.text == 'Викторина':
-        pass
+        bot.send_message(message.chat.id,
+                         f'Вы выбрали игру: {message.text}\nВы должны ответить все на вопросы\nВсего 5 вопросов',
+                         reply_markup=markup)
+        win_counter = 0
+        counter = 0
+        questions = {}
+        with open('questions.txt', mode='r', encoding='utf-8') as file:
+            file = file.readlines()
+            for line in file:
+                question, answer = line.split(';')
+                questions[question] = answer.replace('\n', '').split(':')
+        game_quiz(message, win_counter, counter, questions)
     elif message.text == 'Финальная игра':
         pass
     else:
@@ -234,6 +244,40 @@ def rock_paper_scissors(message, win_counter: int, lose_counter: int,
         bot.send_message(message.chat.id, f'{result}! Вы: {user_answer}, компьютер: {words_to_emoji[computer_step]}')
         computer_step = random.choice(['камень', 'ножницы', 'бумага'])
         bot.register_next_step_handler(message, rock_paper_scissors, win_counter, lose_counter, computer_step)
+
+
+def game_quiz(message, win_counter: int, counter: int, questions: dict):
+    if counter == 5:
+        bot.send_message(message.chat.id, f'Кол-во правильных ответов: {win_counter}')
+        bot.send_message(message.chat.id,
+                         'Хотите сыграть еще раз?\nТогда введите команду /start и выберите эту игру снова')
+        counter = 0
+        return
+    markup = types.InlineKeyboardMarkup(row_width=3)
+    item1 = types.InlineKeyboardButton(questions[list(questions.keys())[counter]][0], callback_data='1')
+    item2 = types.InlineKeyboardButton(questions[list(questions.keys())[counter]][1], callback_data='2')
+    item3 = types.InlineKeyboardButton(questions[list(questions.keys())[counter]][2], callback_data='3')
+    items = [item1, item2, item3]
+    random.shuffle(items)
+    markup.add(items[0], items[1], items[2])
+    bot.send_message(message.chat.id, list(questions.keys())[counter], reply_markup=markup)
+
+    @bot.callback_query_handler()
+    def callback(call):
+        nonlocal win_counter, counter
+        if call.data == '1':
+            win_counter += 1
+            counter += 1
+            print(counter)
+            game_quiz(message, win_counter, counter, questions)
+        elif call.data == '2':
+            counter += 1
+            print(counter)
+            game_quiz(message, win_counter, counter, questions)
+        elif call.data == '3':
+            counter += 1
+            print(counter)
+            game_quiz(message, win_counter, counter, questions)
 
 
 @bot.message_handler()
