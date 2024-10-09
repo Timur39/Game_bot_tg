@@ -8,7 +8,10 @@ from secret_data import token
 
 bot = telebot.TeleBot(token)
 
-coins = 30
+coins = 100
+difficulty = 'easy'
+quiz_counter = 0
+win_counter = 0
 
 
 def goose_number(user_number: int, computer_number: int):
@@ -70,17 +73,18 @@ def start_handler(message):
 
 
 def second_step_start_handler(message):
+    global quiz_counter, win_counter
     markup = types.ReplyKeyboardRemove()
     if message.text == 'Угадай число(бесплатно)':
         bot.send_message(message.chat.id,
-                         f'Вы выбрали игру: {message.text}\nВы должны угадать число от 1 до 100, которое я загадаю\nЯ буду давать вам подсказки\nУ вас 7 попыток',
+                         f'Вы выбрали игру: Угадай число\nВы должны угадать число от 1 до 100, которое я загадаю\nЯ буду давать вам подсказки\nУровень сложности: {difficulty}',
                          reply_markup=markup)
         computer_number = random.randint(1, 100)
         counter = 1
         bot.register_next_step_handler(message, game_goose_number, computer_number, counter)
     elif message.text == 'Крестики нолики(25 монет)' and coins >= 25:
         bot.send_message(message.chat.id,
-                         f'Вы выбрали игру: {message.text}\nВы должны победить меня, расположив крестики или нолики в ряд\nИграем до первой победы',
+                         f'Вы выбрали игру: Крестики нолики\nВы должны победить меня, расположив крестики или нолики в ряд\nИграем до первой победы',
                          reply_markup=markup)
         computer_step = random.randint(0, 9)
         reversed_lst = ['❌', '⭕️']
@@ -89,24 +93,27 @@ def second_step_start_handler(message):
         game_tic_tac_toe(message, computer_step, krestik_or_nolik)
     elif message.text == 'Камень ножницы бумага(15 монет)' and coins >= 15:
         bot.send_message(message.chat.id,
-                         f'Вы выбрали игру: {message.text}\nВы должны победить меня\nИграем до трех побед\nВведите 🪨(камень) или ✂️(ножницы) или 📄(бумага)',
+                         f'Вы выбрали игру: Камень ножницы бумага\nВы должны победить меня\nУровень сложности: {difficulty}\nВведите 🪨(камень) или ✂️(ножницы) или 📄(бумага)',
                          reply_markup=markup)
         win_counter = 0
         lose_counter = 0
         bot.register_next_step_handler(message, rock_paper_scissors, win_counter, lose_counter)
     elif message.text == 'Викторина(50 монет)' and coins >= 50:
         bot.send_message(message.chat.id,
-                         f'Вы выбрали игру: {message.text}\nВы должны ответить все на вопросы\nВсего 5 вопросов',
+                         f'Вы выбрали игру: Викторина\nВы должны ответить все на вопросы\nУровень сложности: {difficulty}',
                          reply_markup=markup)
         win_counter = 0
-        counter = 0
+        quiz_counter = 0
         questions = {}
         with open('questions.txt', mode='r', encoding='utf-8') as file:
             file = file.readlines()
             for line in file:
                 question, answer = line.split(';')
                 questions[question] = answer.replace('\n', '').split(':')
-        game_quiz(message, win_counter, counter, questions)
+        questions = list(questions.items())
+        random.shuffle(questions)
+        questions_shuffled = dict(questions)
+        game_quiz(message, questions_shuffled)
     elif message.text == 'Финальная игра(100 монет)' and coins >= 100:
         pass
     else:
@@ -126,6 +133,11 @@ def game_goose_number(message, computer_number: int, counter: int):
         bot.send_message(message.chat.id, f'Вы ввели число меньше 1')
         bot.register_next_step_handler(message, game_goose_number, computer_number, counter)
     else:
+        steps = 8
+        if difficulty == 'normal':
+            steps = 6
+        elif difficulty == 'hard':
+            steps = 5
         answer = goose_number(int(message.text), computer_number)
         if answer == 'победа':
             coins += 5
@@ -134,7 +146,7 @@ def game_goose_number(message, computer_number: int, counter: int):
                              f'Хотите сыграть еще раз?\nТогда введите команду /start и выберите эту игру снова')
             return
         bot.send_message(message.chat.id, f'{answer}')
-        if counter < 7:
+        if counter < steps:
             counter += 1
             if int(message.text) == computer_number:
                 bot.send_message(message.chat.id,
@@ -217,6 +229,11 @@ def game_tic_tac_toe_user_step(message, computer_step, krestik_or_nolik, first_s
 def rock_paper_scissors(message, win_counter: int, lose_counter: int,
                         computer_step: list[str] = random.choice(['камень', 'ножницы', 'бумага'])):
     global coins
+    win = 3
+    if difficulty == 'normal':
+        win = 3
+    elif difficulty == 'hard':
+        win = 5
     user_answer = message.text.lower()
     words_to_emoji = {'камень': '🪨',
                       'ножницы': '✂️',
@@ -224,16 +241,16 @@ def rock_paper_scissors(message, win_counter: int, lose_counter: int,
     emoji_to_words = {'🪨': 'камень',
                       '✂️': 'ножницы',
                       '📄': 'бумага'}
-    if win_counter == 3:
+    if win_counter == win:
         coins += 10
         bot.send_message(message.chat.id, f'Ты победил! Со счетом: {win_counter}:{lose_counter}\n+10 монет')
         bot.send_message(message.chat.id,
-                         'Хотите сыграть еще раз?\nТогда введите команду /start и выберите эту игру снова')
+                         'Хотите сыграть еще раз?\nТогда введите команду /start и выберите эту игру снова. Для смены сложности /difficulty')
         return
-    elif lose_counter == 3:
+    elif lose_counter == win:
         bot.send_message(message.chat.id, f'Ты проиграл! Со счетом: {lose_counter}:{win_counter}')
         bot.send_message(message.chat.id,
-                         'Хотите сыграть еще раз?\nТогда введите команду /start и выберите эту игру снова')
+                         'Хотите сыграть еще раз?\nТогда введите команду /start и выберите эту игру снова. Для смены сложности /difficulty')
         return
 
     if user_answer not in ['🪨', '✂️', '📄'] and user_answer not in ['камень', 'ножницы', 'бумага']:
@@ -255,50 +272,85 @@ def rock_paper_scissors(message, win_counter: int, lose_counter: int,
         bot.register_next_step_handler(message, rock_paper_scissors, win_counter, lose_counter, computer_step)
 
 
-def game_quiz(message, win_counter: int, counter: int, questions: dict):
-    if counter >= 5:
+def game_quiz(message, questions: dict):
+    global quiz_counter, coins
+    count_questions = 5
+    if difficulty == 'normal':
+        count_questions = 7
+    elif difficulty == 'hard':
+        count_questions = 10
+    if quiz_counter >= count_questions:
         bot.send_message(message.chat.id, f'Кол-во правильных ответов: {win_counter}\n+{win_counter * 3} монет')
         bot.send_message(message.chat.id,
-                         'Хотите сыграть еще раз?\nТогда введите команду /start и выберите эту игру снова')
-        counter = 0
+                         'Хотите сыграть еще раз?\nТогда введите команду /start и выберите эту игру снова. Для смены сложности /difficulty')
+        quiz_counter = 0
+        coins += 3
     else:
         markup = types.InlineKeyboardMarkup(row_width=2)
-        item1 = types.InlineKeyboardButton(questions[list(questions.keys())[counter]][0], callback_data='1')
-        item2 = types.InlineKeyboardButton(questions[list(questions.keys())[counter]][1], callback_data='2')
-        item3 = types.InlineKeyboardButton(questions[list(questions.keys())[counter]][2], callback_data='3')
+        item1 = types.InlineKeyboardButton(questions[list(questions.keys())[quiz_counter]][0], callback_data='true')
+        item2 = types.InlineKeyboardButton(questions[list(questions.keys())[quiz_counter]][1], callback_data='false')
+        item3 = types.InlineKeyboardButton(questions[list(questions.keys())[quiz_counter]][2], callback_data='false')
         items = [item1, item2, item3]
         random.shuffle(items)
         markup.add(items[0], items[1], items[2])
-        bot.send_message(message.chat.id, list(questions.keys())[counter], reply_markup=markup)
+        bot.send_message(message.chat.id, list(questions.keys())[quiz_counter], reply_markup=markup)
 
     @bot.callback_query_handler()
     def callback(call):
-        nonlocal win_counter, counter
-        if counter >= 5:
-            counter = 0
+        nonlocal count_questions
+        global quiz_counter, win_counter
+        if difficulty == 'normal':
+            count_questions = 7
+        elif difficulty == 'hard':
+            count_questions = 10
+        if quiz_counter >= count_questions:
+            quiz_counter = 0
             win_counter = 0
-            coins += 3
-            callback(call)
-        elif call.data == '1':
+        elif call.data == 'true':
             win_counter += 1
-            counter += 1
-            game_quiz(message, win_counter, counter, questions)
-        elif call.data == '2':
-            counter += 1
-            game_quiz(message, win_counter, counter, questions)
-        elif call.data == '3':
-            counter += 1
-            game_quiz(message, win_counter, counter, questions)
+            quiz_counter += 1
+            game_quiz(message, questions)
+        elif call.data == 'false':
+            quiz_counter += 1
+            game_quiz(message, questions)
+        elif call.data == 'false':
+            quiz_counter += 1
+            game_quiz(message, questions)
 
 
 @bot.message_handler(commands=['coins'])
 def coins_handler(message):
     bot.send_message(message.chat.id, f'У вас {coins} монет')
+    bot.send_message(message.chat.id, f'Вы можете их зарабатывать играя в игры')
+
+
+@bot.message_handler(commands=['difficulty'])
+def difficulty_handler(message):
+    markup = types.InlineKeyboardMarkup(row_width=3)
+    item1 = types.InlineKeyboardButton('Easy', callback_data='easy')
+    item2 = types.InlineKeyboardButton('Normal', callback_data='normal')
+    item3 = types.InlineKeyboardButton('Hard', callback_data='hard')
+    markup.add(item1, item2, item3)
+    bot.send_message(message.chat.id, f'Текущая сложность: {difficulty}')
+    bot.send_message(message.chat.id, f'Хотите ее изменить?', reply_markup=markup)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == 'easy' or call.data == 'normal' or call.data == 'hard')
+def callback_difficulty(call):
+    global difficulty
+    if call.data == 'easy':
+        difficulty = 'easy'
+    elif call.data == 'normal':
+        difficulty = 'normal'
+    else:
+        difficulty = 'hard'
+    bot.send_message(call.message.chat.id, f'Текущая сложность: {difficulty}')
+    bot.send_message(call.message.chat.id, 'Сложность изменена!')
 
 
 @bot.message_handler()
 def text_handler(message):
-    bot.send_message(message.chat.id, 'Вы ввели неправильное значение. Попробуйте /start или /coins')
+    bot.send_message(message.chat.id, 'Вы ввели неправильное значение. Попробуйте /start или /coins или /difficulty')
 
 
 bot.polling(none_stop=True)
