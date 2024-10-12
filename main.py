@@ -8,7 +8,7 @@ from secret_data import token
 
 bot = telebot.TeleBot(token)
 
-coins = 100
+coins = 0
 difficulty = 'easy'
 quiz_counter = 0
 win_counter = 0
@@ -64,8 +64,7 @@ def start_handler(message):
     item2 = types.KeyboardButton('Камень ножницы бумага(15 монет)')
     item3 = types.KeyboardButton('Крестики нолики(25 монет)')
     item4 = types.KeyboardButton('Викторина(50 монет)')
-    item5 = types.KeyboardButton('Финальная игра(100 монет)')
-    markup.add(item1, item2, item3, item4, item5)
+    markup.add(item1, item2, item3, item4)
     bot.send_message(message.chat.id,
                      f'Привет, я бот-помощник.\nТвоя задача пройти все игры.\nНо не все так просто их нужно разблокировать за монеты. Монеты дается за прохождение игр.',
                      reply_markup=markup)
@@ -114,8 +113,6 @@ def second_step_start_handler(message):
         random.shuffle(questions)
         questions_shuffled = dict(questions)
         game_quiz(message, questions_shuffled)
-    elif message.text == 'Финальная игра(100 монет)' and coins >= 100:
-        pass
     else:
         bot.send_message(message.chat.id, f'Вам не хватает монет или такой игры не существует. Выберите другую игру.')
         bot.register_next_step_handler(message, second_step_start_handler)
